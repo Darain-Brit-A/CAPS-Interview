@@ -1,5 +1,6 @@
 # Session Interaction Log
-
+# First prompt to generate the readme
+You are a senior software architect with 15+ years of experience your task is not to write code your task is to create an industry standard readme.md that will act as the complete specification for github copilot to implement the project the readme should be detailed enough that an engineer or an ai agent can build the entire project without requiring additional explanations think like you are writing documentation for an enterprise development team the readme should be implementation focused rather than marketing focused focus on producing a document that serves as a complete implementation blueprint for an ai agent or an engineer 
 ## Summary
 
 ### Purpose of AI Usage
