@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Favorite {
+  id            String   @id @default(uuid())
+  sourceType    String
+  sourceId      String
+  title         String
+  payload       String
+  notes         String?
+  tags          String   @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([sourceType, sourceId])
+  @@index([sourceType])
+}
+
+model ApodDaily {
+  date         String   @id
+  title        String
+  explanation  String
+  mediaType    String
+  url          String
+  hdurl        String?
+  copyright    String?
+  fetchedAt    DateTime @default(now())
+}
+
+model JobRun {
+  id           String    @id @default(uuid())
+  jobName      String
+  targetDate   String
+  status       String
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  errorMessage String?
+
+  @@unique([jobName, targetDate])
+}

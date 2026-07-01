@@ -1,0 +1,418 @@
+openapi: 3.1.0
+info:
+  title: Space Explorer Dashboard API
+  version: 1.0.0
+  description: Backend API proxying NASA open APIs (APOD, Mars Rover Photos, NEO) with caching and Favorites CRUD.
+
+servers:
+  - url: http://localhost:4000/api/v1
+
+paths:
+  /apod:
+    get:
+      summary: Fetch Astronomy Picture of the Day
+      description: Returns APOD data for a single date or date range.
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Single date (YYYY-MM-DD). Cannot be future. Min 1995-06-16.
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Start of date range. Mutually exclusive with date.
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: End of date range. Defaults to today if start_date given.
+      responses:
+        '200':
+          description: APOD data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApodEntry'
+                  meta:
+                    $ref: '#/components/schemas/ApodMeta'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mars-rover/photos:
+    get:
+      summary: Fetch Mars Rover photos
+      parameters:
+        - name: rover
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [curiosity, opportunity, spirit, perseverance]
+        - name: sol
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: Martian sol. Mutually exclusive with earth_date.
+        - name: earth_date
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Earth date. Cannot be future.
+        - name: camera
+          in: query
+          schema:
+            type: string
+          description: Camera abbreviation (validated against rover).
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: Mars Rover photos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MarsRoverPhoto'
+                  meta:
+                    $ref: '#/components/schemas/MarsRoverMeta'
+        '400':
+          description: Validation error
+
+  /neo:
+    get:
+      summary: Fetch Near Earth Object feed
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+        - name: end_date
+          in: query
+          schema:
+            type: string
+          description: Max 7 days from start_date.
+        - name: min_diameter_km
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - name: max_diameter_km
+          in: query
+          schema:
+            type: number
+            minimum: 0
+        - name: hazardous_only
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+      responses:
+        '200':
+          description: NEO data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NeoEntry'
+                  meta:
+                    $ref: '#/components/schemas/NeoMeta'
+
+  /favorites:
+    post:
+      summary: Create a favorite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFavorite'
+      responses:
+        '201':
+          description: Created
+        '409':
+          description: Duplicate favorite
+    get:
+      summary: List favorites
+      parameters:
+        - name: sourceType
+          in: query
+          schema:
+            type: string
+            enum: [APOD, MARS_ROVER_PHOTO, NEO]
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, title]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Paginated favorites list
+
+  /favorites/{id}:
+    get:
+      summary: Get a favorite by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Favorite found
+        '404':
+          description: Not found
+    patch:
+      summary: Update notes/tags
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Empty update payload
+        '404':
+          description: Not found
+    delete:
+      summary: Delete a favorite
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+        '503':
+          description: Unhealthy
+
+components:
+  schemas:
+    ApodEntry:
+      type: object
+      properties:
+        date:
+          type: string
+        title:
+          type: string
+        explanation:
+          type: string
+        mediaType:
+          type: string
+          enum: [image, video]
+        url:
+          type: string
+        hdurl:
+          type: string
+          nullable: true
+        copyright:
+          type: string
+          nullable: true
+
+    ApodMeta:
+      type: object
+      properties:
+        count:
+          type: integer
+        cached:
+          type: boolean
+        source:
+          type: string
+
+    MarsRoverPhoto:
+      type: object
+      properties:
+        id:
+          type: integer
+        sol:
+          type: integer
+        earthDate:
+          type: string
+        camera:
+          type: object
+          properties:
+            code:
+              type: string
+            fullName:
+              type: string
+        rover:
+          type: object
+          properties:
+            name:
+              type: string
+            status:
+              type: string
+        imgSrc:
+          type: string
+
+    MarsRoverMeta:
+      type: object
+      properties:
+        count:
+          type: integer
+        page:
+          type: integer
+        cached:
+          type: boolean
+        source:
+          type: string
+
+    NeoEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        estimatedDiameterKm:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+        isPotentiallyHazardous:
+          type: boolean
+        closeApproachDate:
+          type: string
+        missDistanceKm:
+          type: number
+        relativeVelocityKmS:
+          type: number
+
+    NeoMeta:
+      type: object
+      properties:
+        count:
+          type: integer
+        elementCount:
+          type: integer
+        cached:
+          type: boolean
+        startDate:
+          type: string
+        endDate:
+          type: string
+        source:
+          type: string
+
+    CreateFavorite:
+      type: object
+      required: [sourceType, sourceId, title, payload]
+      properties:
+        sourceType:
+          type: string
+          enum: [APOD, MARS_ROVER_PHOTO, NEO]
+        sourceId:
+          type: string
+        title:
+          type: string
+        payload:
+          type: object
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  issue:
+                    type: string
+            requestId:
+              type: string
